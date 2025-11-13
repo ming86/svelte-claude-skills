@@ -24,8 +24,8 @@ interface ModelsResponse {
  * Fetch available models from Anthropic API
  */
 export const fetch_available_models = command(
-	v.optional(v.undefined()),
-	async (): Promise<Model[]> => {
+	v.optional(v.any()),
+	async (_?: unknown): Promise<Model[]> => {
 		console.log('[MODELS] Fetching from Anthropic API...');
 		try {
 			const response = await fetch(

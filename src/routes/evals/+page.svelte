@@ -24,6 +24,13 @@
 	let selected_model = $state('claude-haiku-4-5-20251001');
 	let loading_models = $state(false);
 
+	// Test filters
+	let test_type_filter = $state<'all' | 'activation' | 'quality'>(
+		'all',
+	);
+	let selected_activation_tests = $state<string[]>([]);
+	let selected_quality_tests = $state<string[]>([]);
+
 	onMount(() => {
 		load_models();
 	});
@@ -67,11 +74,19 @@
 		activation_results = [];
 		current_logs = [];
 
-		for (let i = 0; i < activation_tests.length; i++) {
-			current_test = `Running activation test ${i + 1}/${activation_tests.length}: ${activation_tests[i].id}`;
+		// Filter tests based on selection
+		const tests_to_run =
+			selected_activation_tests.length > 0
+				? activation_tests.filter((t) =>
+						selected_activation_tests.includes(t.id),
+					)
+				: activation_tests;
+
+		for (let i = 0; i < tests_to_run.length; i++) {
+			current_test = `Running activation test ${i + 1}/${tests_to_run.length}: ${tests_to_run[i].id}`;
 			try {
 				const result = await test_skill_activation({
-					...activation_tests[i],
+					...tests_to_run[i],
 					model: selected_model,
 				});
 				activation_results = [...activation_results, result];
@@ -91,11 +106,19 @@
 		quality_results = [];
 		current_logs = [];
 
-		for (let i = 0; i < qualityTests.length; i++) {
-			current_test = `Running quality test ${i + 1}/${qualityTests.length}: ${qualityTests[i].id}`;
+		// Filter tests based on selection
+		const tests_to_run =
+			selected_quality_tests.length > 0
+				? qualityTests.filter((t) =>
+						selected_quality_tests.includes(t.id),
+					)
+				: qualityTests;
+
+		for (let i = 0; i < tests_to_run.length; i++) {
+			current_test = `Running quality test ${i + 1}/${tests_to_run.length}: ${tests_to_run[i].id}`;
 			try {
 				const result = await test_response_quality({
-					...qualityTests[i],
+					...tests_to_run[i],
 					model: selected_model,
 				});
 				quality_results = [...quality_results, result];
@@ -177,40 +200,156 @@
 		</details>
 	</div>
 
-	<!-- Test Controls -->
-	<div class="mb-8 grid grid-cols-2 gap-4">
-		<div class="card bg-base-200 p-6">
-			<h2 class="mb-4 text-2xl font-semibold">Activation Tests</h2>
-			<p class="mb-4 text-sm">
-				Verify correct skills trigger for queries ({activation_tests.length}
-				tests)
-			</p>
-			<button
-				class="btn btn-primary"
+	<!-- Test Filters -->
+	<div class="card mb-8 bg-base-200 p-6">
+		<h2 class="mb-4 text-xl font-semibold">Test Filters</h2>
+
+		<!-- Test Type Filter -->
+		<div class="form-control mb-4">
+			<label class="label" for="test-type-filter">
+				<span class="label-text">Test Type:</span>
+			</label>
+			<select
+				id="test-type-filter"
+				class="select-bordered select w-full max-w-md"
+				bind:value={test_type_filter}
 				disabled={is_running}
-				onclick={run_all_activation_tests}
 			>
-				{is_running && current_test.includes('activation')
-					? 'Running...'
-					: 'Run Activation Tests'}
-			</button>
+				<option value="all">All Tests</option>
+				<option value="activation">Activation Only</option>
+				<option value="quality">Quality Only</option>
+			</select>
 		</div>
 
-		<div class="card bg-base-200 p-6">
-			<h2 class="mb-4 text-2xl font-semibold">Quality Tests</h2>
-			<p class="mb-4 text-sm">
-				Verify responses contain correct facts ({qualityTests.length} tests)
-			</p>
-			<button
-				class="btn btn-primary"
-				disabled={is_running}
-				onclick={run_all_quality_tests}
-			>
-				{is_running && current_test.includes('quality')
-					? 'Running...'
-					: 'Run Quality Tests'}
-			</button>
-		</div>
+		<!-- Specific Activation Tests -->
+		{#if test_type_filter === 'all' || test_type_filter === 'activation'}
+			<div class="form-control mb-4">
+				<label class="label" for="activation-tests-filter">
+					<span class="label-text"
+						>Activation Tests (hold Ctrl/Cmd to select multiple, empty
+						= all):</span
+					>
+				</label>
+				<select
+					id="activation-tests-filter"
+					class="select-bordered select w-full"
+					multiple
+					size="5"
+					bind:value={selected_activation_tests}
+					disabled={is_running}
+				>
+					{#each activation_tests as test}
+						<option value={test.id}
+							>{test.id} - {test.description}</option
+						>
+					{/each}
+				</select>
+				<div class="label">
+					<span class="label-text-alt"
+						>Selected: {selected_activation_tests.length || 'All'}
+						of {activation_tests.length}</span
+					>
+				</div>
+			</div>
+		{/if}
+
+		<!-- Specific Quality Tests -->
+		{#if test_type_filter === 'all' || test_type_filter === 'quality'}
+			<div class="form-control">
+				<label class="label" for="quality-tests-filter">
+					<span class="label-text"
+						>Quality Tests (hold Ctrl/Cmd to select multiple, empty =
+						all):</span
+					>
+				</label>
+				<select
+					id="quality-tests-filter"
+					class="select-bordered select w-full"
+					multiple
+					size="5"
+					bind:value={selected_quality_tests}
+					disabled={is_running}
+				>
+					{#each qualityTests as test}
+						<option value={test.id}
+							>{test.id} - {test.description}</option
+						>
+					{/each}
+				</select>
+				<div class="label">
+					<span class="label-text-alt"
+						>Selected: {selected_quality_tests.length || 'All'} of {qualityTests.length}</span
+					>
+				</div>
+			</div>
+		{/if}
+	</div>
+
+	<!-- Test Controls -->
+	<div
+		class="mb-8 grid gap-4"
+		class:grid-cols-2={test_type_filter === 'all'}
+		class:grid-cols-1={test_type_filter !== 'all'}
+	>
+		{#if test_type_filter === 'all' || test_type_filter === 'activation'}
+			<div class="card bg-base-200 p-6">
+				<h2 class="mb-4 text-2xl font-semibold">Activation Tests</h2>
+				<p class="mb-4 text-sm">
+					Verify correct skills trigger for queries
+					{#if selected_activation_tests.length > 0}
+						({selected_activation_tests.length} selected)
+					{:else}
+						({activation_tests.length} tests)
+					{/if}
+				</p>
+				<button
+					class="btn btn-primary"
+					disabled={is_running}
+					onclick={run_all_activation_tests}
+				>
+					{#if is_running && current_test.includes('activation')}
+						Running...
+					{:else if selected_activation_tests.length > 0}
+						Run {selected_activation_tests.length} Activation Test{selected_activation_tests.length >
+						1
+							? 's'
+							: ''}
+					{:else}
+						Run All Activation Tests
+					{/if}
+				</button>
+			</div>
+		{/if}
+
+		{#if test_type_filter === 'all' || test_type_filter === 'quality'}
+			<div class="card bg-base-200 p-6">
+				<h2 class="mb-4 text-2xl font-semibold">Quality Tests</h2>
+				<p class="mb-4 text-sm">
+					Verify responses contain correct facts
+					{#if selected_quality_tests.length > 0}
+						({selected_quality_tests.length} selected)
+					{:else}
+						({qualityTests.length} tests)
+					{/if}
+				</p>
+				<button
+					class="btn btn-primary"
+					disabled={is_running}
+					onclick={run_all_quality_tests}
+				>
+					{#if is_running && current_test.includes('quality')}
+						Running...
+					{:else if selected_quality_tests.length > 0}
+						Run {selected_quality_tests.length} Quality Test{selected_quality_tests.length >
+						1
+							? 's'
+							: ''}
+					{:else}
+						Run All Quality Tests
+					{/if}
+				</button>
+			</div>
+		{/if}
 	</div>
 
 	<!-- Status -->
