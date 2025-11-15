@@ -5,7 +5,7 @@
 				"hooks": [
 					{
 						"type": "command",
-						"command": "echo 'INSTRUCTION: If the prompt matches any available skill keywords, use Skill(skill-name) to activate it.'"
+						"command": ".claude/hooks/skill-llm-eval-hook.sh"
 					}
 				]
 			}
