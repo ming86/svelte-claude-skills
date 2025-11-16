@@ -26,7 +26,7 @@ export const delete_user = command(
 	async ({ id }) => {
 		await db.users.delete(id);
 		return { success: true };
-	}
+	},
 );
 
 // Call from client: await delete_user({ id: '123' });

@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS test_runs (
 	id TEXT PRIMARY KEY,
 	run_timestamp INTEGER NOT NULL,
 	model TEXT NOT NULL,
+	hook_config TEXT CHECK(hook_config IS NULL OR hook_config IN ('none', 'simple', 'llm-eval', 'forced')),
 	git_commit_hash TEXT,
 	total_tests INTEGER NOT NULL,
 	passed_tests INTEGER NOT NULL,
@@ -121,6 +122,7 @@ CREATE TABLE IF NOT EXISTS test_run_skill_versions (
 CREATE INDEX IF NOT EXISTS idx_test_runs_timestamp ON test_runs(run_timestamp);
 CREATE INDEX IF NOT EXISTS idx_test_runs_model ON test_runs(model);
 CREATE INDEX IF NOT EXISTS idx_test_runs_type ON test_runs(test_type);
+CREATE INDEX IF NOT EXISTS idx_test_runs_hook_config ON test_runs(hook_config);
 
 -- Activation results indexes
 CREATE INDEX IF NOT EXISTS idx_activation_results_run_id ON activation_results(run_id);
@@ -267,3 +269,22 @@ FROM (
 ) combined
 GROUP BY test_case_source
 ORDER BY pass_rate DESC;
+
+-- Hook configuration effectiveness comparison
+CREATE VIEW IF NOT EXISTS v_hook_effectiveness AS
+SELECT
+	tr.hook_config,
+	tr.test_type,
+	COUNT(DISTINCT tr.id) as test_runs,
+	SUM(tr.total_tests) as total_tests,
+	SUM(tr.passed_tests) as passed_tests,
+	SUM(tr.failed_tests) as failed_tests,
+	CAST(SUM(tr.passed_tests) AS REAL) / NULLIF(SUM(tr.total_tests), 0) as pass_rate,
+	AVG(tr.avg_latency_ms) as avg_latency_ms,
+	AVG(tr.total_cost_usd) as avg_cost_usd,
+	MIN(tr.run_timestamp) as first_run,
+	MAX(tr.run_timestamp) as last_run
+FROM test_runs tr
+WHERE tr.hook_config IS NOT NULL
+GROUP BY tr.hook_config, tr.test_type
+ORDER BY tr.test_type, pass_rate DESC;

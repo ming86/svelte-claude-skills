@@ -124,20 +124,22 @@ export const test_skill_activation = command(
 				thinking_tokens: 0,
 			};
 
-			// Run query using Claude Agent SDK
+			// Run query using Claude Agent SDK with strict tool limits
 			log('[ACTIVATION TEST] Calling Claude Agent SDK...');
 			const query_result = query({
 				prompt: test_case.query,
 				options: {
 					cwd: process.cwd(),
 					settingSources: ['project'],
-					allowedTools: ['Skill', 'Read'],
+					allowedTools: ['Skill'],
+					maxTurns: 1, // Only allow first response
 					model,
 				},
 			});
 
-			// Check messages for Skill tool invocation
+			// Check ONLY the first assistant message for Skill activation
 			log('[ACTIVATION TEST] Processing messages...');
+			let message_count = 0;
 			for await (const message of query_result) {
 				log(`[ACTIVATION TEST] Message type: ${message.type}`);
 
@@ -158,6 +160,7 @@ export const test_skill_activation = command(
 				}
 
 				if (message.type === 'assistant') {
+					message_count++;
 					// Tool uses are in message.message.content array
 					const content = message.message.content;
 					if (Array.isArray(content)) {
@@ -182,7 +185,11 @@ export const test_skill_activation = command(
 							}
 						}
 					}
-					if (activated_skill) break;
+					// Stop after first assistant message
+					if (message_count >= 1) {
+						log('[ACTIVATION TEST] Checked first response, stopping');
+						break;
+					}
 				}
 			}
 
@@ -265,14 +272,15 @@ export const test_response_quality = command(
 				thinking_tokens: 0,
 			};
 
-			// Get response from Claude with skill activated
+			// Get response from Claude with skill activated (limit to skill activation + response)
 			log('[QUALITY TEST] Calling Claude Agent SDK...');
 			const query_result = query({
 				prompt: test_case.query,
 				options: {
 					cwd: process.cwd(),
 					settingSources: ['project'],
-					allowedTools: ['Skill', 'Read'],
+					allowedTools: ['Skill'],
+					maxTurns: 2, // Allow skill activation + text response
 					model,
 				},
 			});
@@ -280,6 +288,7 @@ export const test_response_quality = command(
 			// Extract text response from assistant messages
 			let response_text = '';
 			log('[QUALITY TEST] Processing messages...');
+			let assistant_message_count = 0;
 			for await (const message of query_result) {
 				log(`[QUALITY TEST] Message type: ${message.type}`);
 
@@ -300,6 +309,7 @@ export const test_response_quality = command(
 				}
 
 				if (message.type === 'assistant') {
+					assistant_message_count++;
 					const content = message.message.content;
 					if (Array.isArray(content)) {
 						for (const block of content) {
@@ -310,6 +320,11 @@ export const test_response_quality = command(
 								);
 							}
 						}
+					}
+					// Stop after 2nd assistant message (skill activation + response)
+					if (assistant_message_count >= 2) {
+						log('[QUALITY TEST] Got skill response, stopping');
+						break;
 					}
 				}
 			}
@@ -404,11 +419,27 @@ export const test_response_quality = command(
  * Run multiple activation tests in sequence
  */
 export const run_activation_tests = command(
-	v.array(activation_test_schema),
-	async (test_cases): Promise<ActivationTestResult[]> => {
+	v.object({
+		test_cases: v.array(activation_test_schema),
+		hook_config: v.optional(
+			v.union([
+				v.literal('none'),
+				v.literal('simple'),
+				v.literal('llm-eval'),
+				v.literal('forced'),
+			]),
+		),
+	}),
+	async ({
+		test_cases,
+		hook_config,
+	}): Promise<ActivationTestResult[]> => {
 		console.log(
 			`\n[RUN TESTS] Starting ${test_cases.length} activation tests`,
 		);
+		if (hook_config) {
+			console.log(`[RUN TESTS] Hook config: ${hook_config}`);
+		}
 
 		// Store skill versions and create test run
 		let run_id: string | null = null;
@@ -424,6 +455,7 @@ export const run_activation_tests = command(
 			console.log('[RUN TESTS] Creating test run...');
 			run_id = await create_test_run({
 				model,
+				hook_config,
 				test_type: 'activation',
 				total_tests: test_cases.length,
 			});
@@ -533,11 +565,27 @@ export const run_activation_tests = command(
  * Run multiple quality tests in sequence
  */
 export const run_quality_tests = command(
-	v.array(quality_test_schema),
-	async (test_cases): Promise<QualityTestResult[]> => {
+	v.object({
+		test_cases: v.array(quality_test_schema),
+		hook_config: v.optional(
+			v.union([
+				v.literal('none'),
+				v.literal('simple'),
+				v.literal('llm-eval'),
+				v.literal('forced'),
+			]),
+		),
+	}),
+	async ({
+		test_cases,
+		hook_config,
+	}): Promise<QualityTestResult[]> => {
 		console.log(
 			`\n[RUN TESTS] Starting ${test_cases.length} quality tests`,
 		);
+		if (hook_config) {
+			console.log(`[RUN TESTS] Hook config: ${hook_config}`);
+		}
 
 		// Store skill versions and create test run
 		let run_id: string | null = null;
@@ -553,6 +601,7 @@ export const run_quality_tests = command(
 			console.log('[RUN TESTS] Creating test run...');
 			run_id = await create_test_run({
 				model,
+				hook_config,
 				test_type: 'quality',
 				total_tests: test_cases.length,
 			});

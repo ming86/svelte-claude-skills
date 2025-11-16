@@ -17,6 +17,14 @@ import * as v from 'valibot';
 export const create_test_run = command(
 	v.object({
 		model: v.string(),
+		hook_config: v.optional(
+			v.union([
+				v.literal('none'),
+				v.literal('simple'),
+				v.literal('llm-eval'),
+				v.literal('forced'),
+			]),
+		),
 		git_commit_hash: v.optional(v.string()),
 		test_type: v.union([
 			v.literal('activation'),
@@ -27,6 +35,7 @@ export const create_test_run = command(
 	}),
 	async ({
 		model,
+		hook_config,
 		git_commit_hash,
 		test_type,
 		total_tests,
@@ -36,18 +45,19 @@ export const create_test_run = command(
 
 		const stmt = db.prepare(`
 			INSERT INTO test_runs (
-				id, run_timestamp, model, git_commit_hash,
+				id, run_timestamp, model, hook_config, git_commit_hash,
 				total_tests, passed_tests, failed_tests, test_type,
 				total_input_tokens, total_output_tokens, total_cache_read_tokens,
 				total_latency_ms, total_cost_usd, avg_latency_ms, created_at
 			)
-			VALUES (?, ?, ?, ?, ?, 0, 0, ?, 0, 0, 0, 0, 0.0, 0.0, ?)
+			VALUES (?, ?, ?, ?, ?, ?, 0, 0, ?, 0, 0, 0, 0, 0.0, 0.0, ?)
 		`);
 
 		stmt.run(
 			run_id,
 			now,
 			model,
+			hook_config || null,
 			git_commit_hash || null,
 			total_tests,
 			test_type,

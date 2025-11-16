@@ -39,7 +39,7 @@ export const create_post = command(
 	async ({ title, content }) => {
 		const post = await db.posts.create({ title, content });
 		return { id: post.id };
-	}
+	},
 );
 ```
 
@@ -60,7 +60,7 @@ export const get_user = query(
 	v.object({ id: v.string() }),
 	async ({ id }) => {
 		return await db.users.findById(id);
-	}
+	},
 );
 
 // Client side - these may be batched:
@@ -115,7 +115,7 @@ export const update_settings = command(
 	async (settings) => {
 		// settings is fully typed and validated
 		await db.settings.update(settings);
-	}
+	},
 );
 ```
 
@@ -162,13 +162,13 @@ export const flexible_action = command.unchecked(async (input) => {
 return {
 	name: 'Alice',
 	age: 30,
-	created: new Date()
+	created: new Date(),
 };
 
 // ❌ Invalid
 return {
 	user: new User(), // Class instance
-	callback: () => {} // Function
+	callback: () => {}, // Function
 };
 ```
 
@@ -201,7 +201,7 @@ export const risky_action = command(
 			throw new Error('Item not found');
 		}
 		return item;
-	}
+	},
 );
 
 // Client side:
@@ -287,7 +287,7 @@ export const get_post = query(
 	v.object({ id: v.number() }),
 	async ({ id }): Promise<{ title: string; body: string }> => {
 		return await db.posts.find(id);
-	}
+	},
 );
 
 // Client - fully typed!

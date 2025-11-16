@@ -23,6 +23,9 @@
 	>([]);
 	let selected_model = $state('claude-haiku-4-5-20251001');
 	let loading_models = $state(false);
+	let selected_hook_config = $state<
+		'none' | 'simple' | 'llm-eval' | 'forced' | undefined
+	>(undefined);
 
 	// Test filters
 	let test_type_filter = $state<'all' | 'activation' | 'quality'>(
@@ -86,9 +89,13 @@
 
 		try {
 			// Call batch runner which handles DB storage
-			const results = await run_activation_tests(
-				tests_to_run.map((t) => ({ ...t, model: selected_model })),
-			);
+			const results = await run_activation_tests({
+				test_cases: tests_to_run.map((t) => ({
+					...t,
+					model: selected_model,
+				})),
+				hook_config: selected_hook_config,
+			});
 			activation_results = results;
 			// Aggregate logs from all results
 			current_logs = results.flatMap((r) => r.logs);
@@ -118,9 +125,13 @@
 
 		try {
 			// Call batch runner which handles DB storage
-			const results = await run_quality_tests(
-				tests_to_run.map((t) => ({ ...t, model: selected_model })),
-			);
+			const results = await run_quality_tests({
+				test_cases: tests_to_run.map((t) => ({
+					...t,
+					model: selected_model,
+				})),
+				hook_config: selected_hook_config,
+			});
 			quality_results = results;
 			// Aggregate logs from all results
 			current_logs = results.flatMap((r) => r.logs);
@@ -150,10 +161,12 @@
 		Test Claude Code skill activation and quality
 	</p>
 
-	<!-- Model Selection -->
+	<!-- Model and Hook Configuration -->
 	<div class="card mb-8 bg-base-200 p-6">
-		<h2 class="mb-4 text-xl font-semibold">Model Selection</h2>
-		<div class="form-control">
+		<h2 class="mb-4 text-xl font-semibold">Test Configuration</h2>
+
+		<!-- Model Selection -->
+		<div class="form-control mb-4">
 			<label class="label" for="model-select">
 				<span class="label-text">Select model for testing:</span>
 			</label>
@@ -186,6 +199,37 @@
 				</span>
 			</div>
 		</div>
+
+		<!-- Hook Configuration Selection -->
+		<div class="form-control">
+			<label class="label" for="hook-config-select">
+				<span class="label-text">
+					Hook configuration (for comparison testing):
+				</span>
+			</label>
+			<select
+				id="hook-config-select"
+				class="select-bordered select w-full max-w-md"
+				bind:value={selected_hook_config}
+				disabled={is_running}
+			>
+				<option value={undefined}>Use current settings.json</option>
+				<option value="none">No hook (baseline)</option>
+				<option value="simple">Simple instruction hook</option>
+				<option value="llm-eval">LLM evaluation hook</option>
+				<option value="forced">Forced evaluation hook</option>
+			</select>
+			<div class="label">
+				<span class="label-text-alt">
+					{#if selected_hook_config}
+						Testing with: {selected_hook_config} hook
+					{:else}
+						Using project's .claude/settings.json configuration
+					{/if}
+				</span>
+			</div>
+		</div>
+
 		<!-- Debug info -->
 		<details class="mt-4">
 			<summary class="cursor-pointer text-sm opacity-50"
@@ -193,7 +237,12 @@
 			>
 			<pre
 				class="mt-2 overflow-auto rounded bg-base-300 p-2 text-xs">{JSON.stringify(
-					{ loading_models, available_models, selected_model },
+					{
+						loading_models,
+						available_models,
+						selected_model,
+						selected_hook_config,
+					},
 					null,
 					2,
 				)}</pre>
